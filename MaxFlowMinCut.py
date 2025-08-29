@@ -1,29 +1,47 @@
 import heapq
+from collections import deque
 
 class MinCostFlow:
     def __init__(self):
         self.graph = {}
+        self.graph_residual = {}
         self.INF = 10**9
         self.task = {}
-        self.node = {}
+        self.node = {} # node == computational node
 
-    def add_new_task(self, id,ram,cpu,deadline):
+    def add_new_task(self, id, ram, cpu, deadline):
         if id not in self.graph:
             self.graph[id] = {}
-        self.task[id]={'ram':ram,'cpu':cpu,'deadline':deadline}
-
-    def add_new_node(self, id, ram , cpu):
+            self.graph_residual[id] = {}
+        self.task[id] = {'ram': ram, 'cpu': cpu, 'deadline': deadline}
+        
+    def add_new_node(self, id, ram, cpu):
         if id not in self.graph:
             self.graph[id] = {}
-        self.node[id]={'ram':ram,'cpu':cpu}
+            self.graph_residual[id] = {}
+        self.node[id] = {'ram_cap' : ram , 'cpu_cap' : cpu , 'ram': 0, 'cpu' : 0}
 
     def add_edge(self, u, v, cap, cost):
-        self.graph[u][v] = [cap, cost]
-        self.graph[v][u] = [0, -cost]
+        # Add to original graph
+        if u not in self.graph:
+            self.graph[u] = {}
+        self.graph[u][v] = [0,cap, cost]
+        
+        # Add to residual graph (forward edge)
+        if u not in self.graph_residual:
+            self.graph_residual[u] = {}
+        self.graph_residual[u][v] = [cap, cost]  # [flow, cost]
+        
+        # Add reverse edge to residual graph
+        if v not in self.graph_residual:
+            self.graph_residual[v] = {}
+        self.graph_residual[v][u] = [0, -cost]  # reverse edge has negative cost
 
     def build_network(self, tasks, nodes, exec_cost):
         self.graph['S'] = {}
         self.graph['T'] = {}
+        self.graph_residual['S'] = {}
+        self.graph_residual['T'] = {}
 
         # source -> tasks
         for t in tasks:
@@ -39,82 +57,124 @@ class MinCostFlow:
         for t in tasks:
             tid = t["id"]
             for nid, c in exec_cost[tid].items():
-                if self.task[tid]['ram'] <= self.node[nid]['ram'] and self.task[tid]['cpu'] <= self.node[nid]['cpu']:
+                if self.task[tid]['ram'] <= self.node[nid]['ram_cap'] and self.task[tid]['cpu'] <= self.node[nid]['cpu_cap']:
                     self.add_edge(tid, nid, 1, c)
 
-    def min_cost_flow(self, max_flow):
-        n = len(self.graph)
-        h = dict()
-        for v in self.graph:
-            h[v] = 0
-        dist = {}
-        prevv = {}
-        flow = 0
-        cost = 0
-        assignments = {}
+    def Is_Valid_Ram_and_Cpu(self,u,v):
 
-        while flow < max_flow:
-            dist = {}
-            for v in self.graph:
-                dist[v] = self.INF
+        if u =='S' or u=='T' or v=='S' or v=='T' :
+            return True
+        if u in self.node.keys() and v in self.task.keys(): # v->u
+            if self.task[v]['cpu'] + self.node[u]['cpu'] > self.node[u]['cpu_cap'] or self.task[v]['ram'] + self.node[u]['ram'] > self.node[u]['ram_cap'] : 
+                return False
+        elif u in self.task.keys() and v in self.node.keys(): # u->v
+            if self.task[u]['cpu'] + self.node[v]['cpu'] > self.node[v]['cpu_cap'] or self.task[u]['ram'] + self.node[v]['ram'] > self.node[v]['ram_cap'] : 
+                return False
+        return True
 
-            dist['S'] = 0
-            prevv = {}
 
-            pq = [(0, 'S')]
-            while pq:
-                d, v = heapq.heappop(pq)
-                if dist[v] < d:
+
+    def BellmanFord_residual(self, source, sink):
+        # Initialize distances and predecessors
+        dist = {node: self.INF for node in self.graph_residual}
+        dist[source] = 0
+        parent = {node: None for node in self.graph_residual}
+        # print(self.graph_residual)
+        # Relax edges repeatedly
+        for _ in range(len(self.graph_residual) - 1):
+            updated = False
+            for u in self.graph_residual:
+                if dist[u] == self.INF:
                     continue
-                for u, (cap, w) in self.graph[v].items():
-                    if cap > 0 and dist[u] > dist[v] + w + h[v] - h[u]:
-                        if (v not in ('S','T') and u not in ('S','T') and v in self.task.keys() and u in self.node.keys()):
-                            if self.task[v]['ram'] <= self.node[u]['ram'] and self.task[v]['cpu'] <= self.node[u]['cpu']:
-                                dist[u] = dist[v] + w + h[v] - h[u]
-                                prevv[u] = v
-                                heapq.heappush(pq, (dist[u], u))
-                        else:
-                            dist[u] = dist[v] + w + h[v] - h[u]
-                            prevv[u] = v
-                            heapq.heappush(pq, (dist[u], u))
-
-            if 'T' not in prevv:
+                for v, edge in self.graph_residual[u].items():
+                    flow, cost = edge
+                    # Check if there's residual capacity
+                    # print(u,",",v)
+                    if flow > 0 and dist[u] + cost < dist[v] and self.Is_Valid_Ram_and_Cpu(u,v):
+                        dist[v] = dist[u] + cost
+                        parent[v] = (u, cost)
+                        updated = True
+            if not updated:
                 break
+        
+        # Check if sink is reachable
+        if dist[sink] == self.INF:
+            return None, None, None
+        
+        # Reconstruct the path and find minimum residual capacity
+        path = []
+        min_cap_bottenleck = self.INF
+        current = sink
+        
+        while current != source:
+            if parent[current] is None:
+                return None, None, None
+            u, cost = parent[current]
+            flow, _ = self.graph_residual[u][current]
+            min_cap_bottenleck = min(min_cap_bottenleck, flow)
+            path.append((u, current, cost))
+            current = u
+        
+        path.reverse()
+        return path, min_cap_bottenleck, dist[sink]
 
-            for v in self.graph:
-                if dist[v] < self.INF:
-                    h[v] += dist[v]
+    def min_cost_flow_Bellman_EdmondKarp(self):
+        total_flow = 0
+        total_cost = 0
 
-            d = 1
+        path, min_cap, path_cost = None , None , None
 
-            v = 'T'
-            while v != 'S':
-                u = prevv[v]
-                self.graph[u][v][0] -= d
-                self.graph[v][u][0] += d
-                v = u
+        while True:
+            # Find shortest path using Bellman-Ford on residual graph
+            path, min_cap, path_cost = self.BellmanFord_residual('S', 'T')
+            
+            if path is None:
+                break  # No augmenting path found
+            
+            for u, v, cost in path:
+                # Update forward edge flow
+                
+                if u in self.graph and v in self.graph[u] :
+                    self.graph[u][v][0]+=min_cap
+                    self.graph_residual[u][v][0] -= min_cap
+                    self.graph_residual[v][u][0] += min_cap
+                else :
+                    self.graph_residual[u][v][0] -= min_cap
+                    self.graph_residual[v][u][0] += min_cap
+                    self.graph[v][u][0] -= min_cap
+                if u =='S' or u=='T' or v=='S' or v=='T' :
+                    continue
+                else :
+                    if u in self.node.keys() and v in self.task.keys():
+                        self.node[u]['ram']-=self.task[v]['ram']
+                        self.node[u]['cpu']-=self.task[v]['cpu']
+                    elif u in self.task.keys() and v in self.node.keys():
+                        self.node[v]['ram']+=self.task[u]['ram']
+                        self.node[v]['cpu']+=self.task[u]['cpu']
 
-            flow += d
-            cost += d * h['T']
+            
 
-            path = []
-            v = 'T'
-            while v != 'S':
-                path.append(v)
-                v = prevv[v]
-            path.append('S')
-            path.reverse()
+        # Build assignment result
+        assignment = {}
+        for vertex , [flow , cap , cost] in self.graph['S'].items() : 
+            if flow==1 :
+                total_flow+=1
+        
+        for task in self.task.keys():
+            node_task = self.graph[task]
+            for child_nodeTask,[flow,cap,cost]  in node_task.items(): 
+                if flow==1 :
+                    assignment[task]=child_nodeTask
+                    total_cost+=cost
 
-            #I'm not sure about this part
-            self.node[path[2]]['ram'] -= self.task[path[1]]['ram']
-            self.node[path[2]]['cpu'] -= self.task[path[1]]['cpu']
+        return {
+            'total_cost': total_cost,
+            'total_flow': total_flow,
+            'assignment': assignment
+        }
 
-            assignments[path[1]] = path[2]
+# Test data
 
-        assignments = {k: assignments[k] for k in sorted(assignments.keys())}
-
-        return {"total_cost": cost, "assignments": assignments}
-    
 dict_data = {
   "tasks": [
     {"id": "T1", "cpu": 2, "ram": 3,"deadline":2},
@@ -138,8 +198,11 @@ dict_data = {
 }
 
 
-
 mcf = MinCostFlow()
 mcf.build_network(dict_data["tasks"], dict_data["nodes"], dict_data["exec_cost"])
-result = mcf.min_cost_flow(5)
-print(result)
+result = mcf.min_cost_flow_Bellman_EdmondKarp()
+print(f"Total cost: {result['total_cost']}")
+print(f"Total flow: {result['total_flow']}")
+print("Assignments:")
+for task, node in result['assignment'].items():
+    print(f"  {task} -> {node}")
