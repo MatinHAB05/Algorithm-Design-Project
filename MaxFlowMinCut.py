@@ -37,11 +37,17 @@ class MinCostFlow:
             self.graph_residual[v] = {}
         self.graph_residual[v][u] = [0, -cost]  # reverse edge has negative cost
 
-    def build_network(self, tasks, nodes, exec_cost):
+    def build_network(self, tasks, nodes, exec_cost,time_slots,node_capacity):
         self.graph['S'] = {}
         self.graph['T'] = {}
         self.graph_residual['S'] = {}
         self.graph_residual['T'] = {}
+        tempDictNodeCap = {}
+        for key in node_capacity.keys() : 
+            tempDictNodeCap[key]=0
+            for cap in node_capacity[key] : 
+                tempDictNodeCap[key]+=int(cap)
+        # print(tempDictNodeCap)
 
         # source -> tasks
         for t in tasks:
@@ -51,7 +57,10 @@ class MinCostFlow:
         # nodes -> sink
         for n in nodes:
             self.add_new_node(n["id"], n["ram_capacity"], n["cpu_capacity"])
-            self.add_edge(n["id"], 'T', self.INF, 0)
+            # phase 1 : self.add_edge(n["id"], 'T', self.INF, 0)
+            # phase 2 : 
+            self.add_edge(n["id"], 'T',tempDictNodeCap[n["id"]],  0)
+
 
         # tasks -> nodes with cost
         for t in tasks:
@@ -60,7 +69,7 @@ class MinCostFlow:
                 if self.task[tid]['ram'] <= self.node[nid]['ram_cap'] and self.task[tid]['cpu'] <= self.node[nid]['cpu_cap']:
                     self.add_edge(tid, nid, 1, c)
 
-    def Is_Valid_Ram_and_Cpu(self,u,v):
+    def Is_Valid_Ram_and_Cpu_NodeCapcity(self,u,v):
 
         if u =='S' or u=='T' or v=='S' or v=='T' :
             return True
@@ -90,7 +99,7 @@ class MinCostFlow:
                     flow, cost = edge
                     # Check if there's residual capacity
                     # print(u,",",v)
-                    if flow > 0 and dist[u] + cost < dist[v] and self.Is_Valid_Ram_and_Cpu(u,v):
+                    if flow > 0 and dist[u] + cost < dist[v] and self.Is_Valid_Ram_and_Cpu_NodeCapcity(u,v):
                         dist[v] = dist[u] + cost
                         parent[v] = (u, cost)
                         updated = True
@@ -134,23 +143,24 @@ class MinCostFlow:
             for u, v, cost in path:
                 # Update forward edge flow
                 
-                if u in self.graph and v in self.graph[u] :
+                if u in self.graph and v in self.graph[u] : # u->v
                     self.graph[u][v][0]+=min_cap
                     self.graph_residual[u][v][0] -= min_cap
                     self.graph_residual[v][u][0] += min_cap
-                else :
+                else : # no u->v
                     self.graph_residual[u][v][0] -= min_cap
                     self.graph_residual[v][u][0] += min_cap
                     self.graph[v][u][0] -= min_cap
                 if u =='S' or u=='T' or v=='S' or v=='T' :
                     continue
                 else :
-                    if u in self.node.keys() and v in self.task.keys():
+                    if u in self.node.keys() and v in self.task.keys(): # node->task
                         self.node[u]['ram']-=self.task[v]['ram']
                         self.node[u]['cpu']-=self.task[v]['cpu']
-                    elif u in self.task.keys() and v in self.node.keys():
+                    elif u in self.task.keys() and v in self.node.keys(): # task->node
                         self.node[v]['ram']+=self.task[u]['ram']
                         self.node[v]['cpu']+=self.task[u]['cpu']
+
 
             
 
@@ -194,12 +204,38 @@ dict_data = {
     "T3": {"N1": 7, "N2": 9, "N3": 5},
     "T4": {"N1": 4, "N2": 3, "N3": 6},
     "T5": {"N1": 3, "N2": 7, "N3": 3}
-  }
+  },
+  "time_slots": [
+    0,
+    1,
+    2,
+    3
+  ],
+"node_capacity_per_time": {
+    "N1": {
+    "0": 2,
+    "1": 2,
+    "2": 2,
+    "3": 2
+    },
+    "N2": {
+    "0": 3,
+    "1": 3,
+    "2": 2,
+    "3": 2
+    } , 
+    "N3": {
+    "0": 3,
+    "1": 3,
+    "2": 2,
+    "3": 2
+    }
+ }
 }
 
-
+# if __name__ == "__main__" :
 mcf = MinCostFlow()
-mcf.build_network(dict_data["tasks"], dict_data["nodes"], dict_data["exec_cost"])
+mcf.build_network(dict_data["tasks"], dict_data["nodes"], dict_data["exec_cost"],dict_data["time_slots"],dict_data["node_capacity_per_time"])
 result = mcf.min_cost_flow_Bellman_EdmondKarp()
 print(f"Total cost: {result['total_cost']}")
 print(f"Total flow: {result['total_flow']}")
