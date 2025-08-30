@@ -8,7 +8,7 @@ def CreateDependencies_Graph(dependencies,duration) :
     dp_graph= {}
     task_node_sch = {}
     for t in graph.task.keys() :
-        dp_graph[t] = {'parent':[] , 'child' : []} #parent (parents,start,end,duration,deadline)  
+        dp_graph[t] = {'parent':[] , 'child' : []} #parent (parents,child)  
         task_node_sch[t] ={'start':-97,'end':-97,'duration' : duration[t] ,'deadline':  graph.task[t]['deadline'] ,'flag' : 0}
     for dep in dependencies :
         dp_graph[dep['after']]['parent'].append(dep['before'])
@@ -83,24 +83,37 @@ def Schedule_Tasks():
         for node,TaskList in Schedule_Nodes.items() : 
             if  len(TaskList)==0 : 
                 continue
-            print("****"+node+" "+TaskList[0][0])
+            # print("****"+node+" "+TaskList[0][0])
             if AttemptToRunTopTask(node,TaskList[0]):
                 TaskComputedCount-=1
                 del TaskList[0]
                 break
     
     for t,coll in task_node_sch_list.items() :
-        print(t+" : "+f"[start:{coll['start']},end:{coll['end']},duration:{coll['duration']},deadline:{coll['deadline']},flag:{coll['flag']}")
+    #     print(t+" : "+f"[start:{coll['start']},end:{coll['end']},duration:{coll['duration']},deadline:{coll['deadline']},flag:{coll['flag']}")
         if coll['end']> coll['deadline'] :
-            print(f"DEADLINE!!!! === task : {t} , endTime : {coll['end'] } > deadline : {coll['deadline']}")
+            print(f"\nDEADLINE!!!! <===> task : {t} , endTime : {coll['end'] } , deadline : {coll['deadline']}    [{coll['end']} > {coll['deadline']}]")
             j['schedule']={}
+            
+            print("\nSchedule: No Schedule")
+            print("\nValue:False")
+            print(f"\nTotalCost:{j['total_cost']}\n")
+            
+            
             return j
     
+    
+    print("\nSchedule:")
     for task,node in assignment.items():
         j['schedule'][task]={'node':node,'start_time':task_node_sch_list[task]['start']}
+        print(f"task:{task} , node:{node} , start_time:{task_node_sch_list[task]['start']}")
         
     
     
+    j['value'] =True
+    
+    print("\nValue:True")
+    print(f"\nTotalCost:{j['total_cost']}\n")
     return j 
 
 def AttemptToRunTopTask(node,Task) : 
@@ -127,15 +140,15 @@ input_dict = {
 "dependencies": [ # assumption : valid Input[it is DAG !]
     {
     "before": "T1",
-    "after": "T3"
-    },
-    {
-    "before": "T1",
-    "after": "T5"
+    "after": "T2"
     },
     {
     "before": "T2",
     "after": "T3"
+    },
+    {
+    "before": "T3",
+    "after": "T4"
     }
 ],
 
@@ -149,9 +162,9 @@ input_dict = {
 }
 
 dependencies_graph , task_node_sch_list = CreateDependencies_Graph(input_dict["dependencies"],input_dict["task_duration"])
-print(dependencies_graph)
+# print(dependencies_graph)
 Schedule_Nodes = SchedulePerNode()
-print(Schedule_Nodes) 
+# print(Schedule_Nodes) 
 Schedule_Assigments_Tasks = Schedule_Tasks()
 # print(task_node_sch_list)
-print(Schedule_Assigments_Tasks)
+# print(Schedule_Assigments_Tasks)

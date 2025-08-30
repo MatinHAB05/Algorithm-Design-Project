@@ -45,7 +45,7 @@ class MinCostFlow:
         tempDictNodeCap = {}
         for key in node_capacity.keys() : 
             tempDictNodeCap[key]=0
-            for cap in node_capacity[key] : 
+            for time_sl,cap in node_capacity[key].items() : 
                 tempDictNodeCap[key]+=int(cap)
         # print(tempDictNodeCap)
 
@@ -213,10 +213,10 @@ dict_data = {
   ],
 "node_capacity_per_time": {
     "N1": {
-    "0": 2,
-    "1": 2,
-    "2": 2,
-    "3": 2
+    "0": 1,
+    "1": 0,
+    "2": 0,
+    "3": 0
     },
     "N2": {
     "0": 3,
