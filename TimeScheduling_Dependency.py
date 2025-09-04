@@ -90,7 +90,7 @@ def Schedule_Tasks():
                 break
     
     for t,coll in task_node_sch_list.items() :
-    #     print(t+" : "+f"[start:{coll['start']},end:{coll['end']},duration:{coll['duration']},deadline:{coll['deadline']},flag:{coll['flag']}")
+        # print(t+" : "+f"[start:{coll['start']},end:{coll['end']},duration:{coll['duration']},deadline:{coll['deadline']},flag:{coll['flag']}")
         if coll['end']> coll['deadline'] :
             print(f"\nDEADLINE!!!! <===> task : {t} , endTime : {coll['end'] } , deadline : {coll['deadline']}    [{coll['end']} > {coll['deadline']}]")
             j['schedule']={}
